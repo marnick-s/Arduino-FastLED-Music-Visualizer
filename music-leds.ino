@@ -12,13 +12,13 @@
 
 // LED LIGHTING SETUP
 #define LED_PIN     6
-#define NUM_LEDS    200 // 250
-#define BRIGHTNESS  64
+#define NUM_LEDS    120
+#define BRIGHTNESS  255
 #define LED_TYPE    WS2811
 #define COLOR_ORDER GRB
 CRGB leds[NUM_LEDS];
 
-#define UPDATES_PER_SECOND 100
+#define UPDATES_PER_SECOND 240
 
 // AUDIO INPUT SETUP
 int strobe = 4;
@@ -43,6 +43,8 @@ long post_react = 0; // OLD SPIKE CONVERSION
 
 // RAINBOW WAVE SETTINGS
 int wheel_speed = 2;
+
+int sensitivity = 4; // SENSITIVITY TO MUSIC / AMOUNT OF LEDS LIT UP
 
 void setup()
 {
@@ -118,18 +120,69 @@ void singleRainbow()
 // FUNCTION TO MIRRORED VISUALIZER
 void doubleRainbow()
 {
+  // doubleColorFade(128, 0, 128, 255, 0, 0);  // Overgang van paars naar rood
+  doubleColor(255, 0, 0);  
+  // for(int i = NUM_LEDS - 1; i >= midway; i--) {
+  //   if (i < react + midway) {
+  //     //Serial.print(i);
+  //     //Serial.print(" -> ");
+  //     leds[i] = Scroll((i * 256 / 50 + k) % 256);
+  //     //Serial.print(i);
+  //     //Serial.print(" -> ");
+  //     leds[(midway - i) + midway] = Scroll((i * 256 / 50 + k) % 256);
+  //   }
+  //   else
+  //     leds[i] = CRGB(0, 0, 0);
+  //     leds[midway - react] = CRGB(0, 0, 0);
+  // }
+  // FastLED.show();
+}
+
+void doubleColor(int red, int green, int blue)
+{
   for(int i = NUM_LEDS - 1; i >= midway; i--) {
     if (i < react + midway) {
-      //Serial.print(i);
-      //Serial.print(" -> ");
-      leds[i] = Scroll((i * 256 / 50 + k) % 256);
-      //Serial.print(i);
-      //Serial.print(" -> ");
-      leds[(midway - i) + midway] = Scroll((i * 256 / 50 + k) % 256);
+      int colorIndex = (i * 256 / 50 + k) % 256;
+
+      // Kleur instellen met opgegeven RGB-waarden
+      leds[i] = CRGB(red, green, blue);
+
+      // Gespiegelde LED aan de andere kant
+      leds[(midway - i) + midway] = CRGB(red, green, blue);
     }
-    else
+    else {
+      // LED's buiten het actieve bereik worden uitgeschakeld
       leds[i] = CRGB(0, 0, 0);
       leds[midway - react] = CRGB(0, 0, 0);
+    }
+  }
+  FastLED.show();
+}
+
+void doubleColorFade(int startRed, int startGreen, int startBlue, int endRed, int endGreen, int endBlue)
+{
+  for(int i = NUM_LEDS - 1; i >= midway; i--) {
+    if (i < react + midway) {
+      int colorIndex = (i * 256 / 50 + k) % 256;
+
+      // Helderheid wordt bepaald door de geluidsinvoer
+      int brightness = map(i, midway, NUM_LEDS - 1, 255, 0);
+      
+      // Kleur in het midden, vervagen naar de uiteinden
+      leds[i] = CRGB(map(colorIndex, 0, 255, startRed, endRed),
+                     map(colorIndex, 0, 255, startGreen, endGreen),
+                     map(colorIndex, 0, 255, startBlue, endBlue)) % brightness;
+
+      // Gespiegelde LED aan de andere kant
+      leds[(midway - i) + midway] = CRGB(map(colorIndex, 0, 255, startRed, endRed),
+                                          map(colorIndex, 0, 255, startGreen, endGreen),
+                                          map(colorIndex, 0, 255, startBlue, endBlue)) % brightness;
+    }
+    else {
+      // LED's buiten het actieve bereik worden uitgeschakeld
+      leds[i] = CRGB(0, 0, 0);
+      leds[midway - react] = CRGB(0, 0, 0);
+    }
   }
   FastLED.show();
 }
@@ -158,7 +211,7 @@ void convertSingle()
 
   if (audio_input > 80)
   {
-    pre_react = ((long)NUM_LEDS * (long)audio_input) / 1023L; // TRANSLATE AUDIO LEVEL TO NUMBER OF LEDs
+    pre_react = ((long)NUM_LEDS * (long)audio_input * sensitivity) / 1023L; // TRANSLATE AUDIO LEVEL TO NUMBER OF LEDs
 
     if (pre_react > react) // ONLY ADJUST LEVEL OF LED IF LEVEL HIGHER THAN CURRENT LEVEL
       react = pre_react;
@@ -178,7 +231,7 @@ void convertDouble()
 
   if (audio_input > 80)
   {
-    pre_react = ((long)midway * (long)audio_input) / 1023L; // TRANSLATE AUDIO LEVEL TO NUMBER OF LEDs
+    pre_react = ((long)midway * (long)audio_input * sensitivity) / 1023L; // TRANSLATE AUDIO LEVEL TO NUMBER OF LEDs
 
     if (pre_react > react) // ONLY ADJUST LEVEL OF LED IF LEVEL HIGHER THAN CURRENT LEVEL
       react = pre_react;
@@ -241,3 +294,13 @@ void loop()
   doubleLevel();
   //delay(1);
 }
+
+
+
+/*
+  Effects (SINGLE/MULTI/RIANBOW)
+  Volume/sensitivity
+  Color (SINGLE/MULTI only)
+  Frequency
+  Brightness
+*/
