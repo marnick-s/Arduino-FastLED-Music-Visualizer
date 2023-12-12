@@ -1,4 +1,5 @@
-#include <FastLED.h>
+#pragma once
+#include "precomp.h";
 
 // Arduino Music Visualizer 0.3
 
@@ -10,41 +11,8 @@
 
 // This code uses the Sparkfun Spectrum Shield
 
-// LED LIGHTING SETUP
-#define LED_PIN     6
-#define NUM_LEDS    120
-#define BRIGHTNESS  255
-#define LED_TYPE    WS2811
-#define COLOR_ORDER GRB
-CRGB leds[NUM_LEDS];
-
-#define UPDATES_PER_SECOND 240
-
-// AUDIO INPUT SETUP
-int strobe = 4;
-int reset = 5;
-int audio1 = A0;
-int audio2 = A1;
-int left[7];
-int right[7];
-int band;
-int audio_input = 0;
-int freq = 0;
-
-// STANDARD VISUALIZER VARIABLES
-int midway = NUM_LEDS / 2; // CENTER MARK FROM DOUBLE LEVEL VISUALIZER
-int loop_max = 0;
-int k = 255; // COLOR WHEEL POSITION
-int decay = 0; // HOW MANY MS BEFORE ONE LIGHT DECAY
-int decay_check = 0;
-long pre_react = 0; // NEW SPIKE CONVERSION
-long react = 0; // NUMBER OF LEDs BEING LIT
-long post_react = 0; // OLD SPIKE CONVERSION
-
-// RAINBOW WAVE SETTINGS
-int wheel_speed = 2;
-
-int sensitivity = 4; // SENSITIVITY TO MUSIC / AMOUNT OF LEDS LIT UP
+EndsEffect* ends = nullptr;
+CenterEffect* center = nullptr;
 
 void setup()
 {
@@ -59,7 +27,7 @@ void setup()
   // LED LIGHTING SETUP
   delay( 3000 ); // power-up safety delay
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness(  BRIGHTNESS );
+  FastLED.setBrightness(  brightness );
 
   // CLEAR LEDS
   for (int i = 0; i < NUM_LEDS; i++)
@@ -69,229 +37,32 @@ void setup()
   // SERIAL AND INPUT SETUP
   Serial.begin(115200);
   Serial.println("\nListening...");
-}
 
-// FUNCTION TO GENERATE COLOR BASED ON VIRTUAL WHEEL
-// https://github.com/NeverPlayLegit/Rainbow-Fader-FastLED/blob/master/rainbow.ino
-CRGB Scroll(int pos) {
-  pos = abs(pos);
-  CRGB color (0,0,0);
-  if(pos < 85) {
-    color.g = 0;
-    color.r = ((float)pos / 85.0f) * 255.0f;
-    color.b = 255 - color.r;
-  } else if(pos < 170) {
-    color.g = ((float)(pos - 85) / 85.0f) * 255.0f;
-    color.r = 255 - color.g;
-    color.b = 0;
-  } else if(pos < 256) {
-    color.b = ((float)(pos - 170) / 85.0f) * 255.0f;
-    color.g = 255 - color.b;
-    color.r = 1;
-  }
-  /*
-  Serial.print(pos);
-  Serial.print(" -> ");
-  Serial.print("r: ");
-  Serial.print(color.r);
-  Serial.print("    g: ");
-  Serial.print(color.g);
-  Serial.print("    b: ");
-  Serial.println(color.b);
-  */
-  return color;
-}
-
-// FUNCTION TO GET AND SET COLOR
-// THE ORIGINAL FUNCTION WENT BACKWARDS
-// THE MODIFIED FUNCTION SENDS WAVES OUT FROM FIRST LED
-// https://github.com/NeverPlayLegit/Rainbow-Fader-FastLED/blob/master/rainbow.ino
-void singleRainbow()
-{
-  for(int i = NUM_LEDS - 1; i >= 0; i--) {
-    if (i < react)
-      leds[i] = Scroll((i * 256 / 50 + k) % 256);
-    else
-      leds[i] = CRGB(0, 0, 0);      
-  }
-  FastLED.show(); 
-}
-
-// FUNCTION TO MIRRORED VISUALIZER
-void doubleRainbow()
-{
-  // doubleColorFade(128, 0, 128, 255, 0, 0);  // Overgang van paars naar rood
-  doubleColor(255, 0, 0);  
-  // for(int i = NUM_LEDS - 1; i >= midway; i--) {
-  //   if (i < react + midway) {
-  //     //Serial.print(i);
-  //     //Serial.print(" -> ");
-  //     leds[i] = Scroll((i * 256 / 50 + k) % 256);
-  //     //Serial.print(i);
-  //     //Serial.print(" -> ");
-  //     leds[(midway - i) + midway] = Scroll((i * 256 / 50 + k) % 256);
-  //   }
-  //   else
-  //     leds[i] = CRGB(0, 0, 0);
-  //     leds[midway - react] = CRGB(0, 0, 0);
-  // }
-  // FastLED.show();
-}
-
-void doubleColor(int red, int green, int blue)
-{
-  for(int i = NUM_LEDS - 1; i >= midway; i--) {
-    if (i < react + midway) {
-      int colorIndex = (i * 256 / 50 + k) % 256;
-
-      // Kleur instellen met opgegeven RGB-waarden
-      leds[i] = CRGB(red, green, blue);
-
-      // Gespiegelde LED aan de andere kant
-      leds[(midway - i) + midway] = CRGB(red, green, blue);
-    }
-    else {
-      // LED's buiten het actieve bereik worden uitgeschakeld
-      leds[i] = CRGB(0, 0, 0);
-      leds[midway - react] = CRGB(0, 0, 0);
-    }
-  }
-  FastLED.show();
-}
-
-void doubleColorFade(int startRed, int startGreen, int startBlue, int endRed, int endGreen, int endBlue)
-{
-  for(int i = NUM_LEDS - 1; i >= midway; i--) {
-    if (i < react + midway) {
-      int colorIndex = (i * 256 / 50 + k) % 256;
-
-      // Helderheid wordt bepaald door de geluidsinvoer
-      int brightness = map(i, midway, NUM_LEDS - 1, 255, 0);
-      
-      // Kleur in het midden, vervagen naar de uiteinden
-      leds[i] = CRGB(map(colorIndex, 0, 255, startRed, endRed),
-                     map(colorIndex, 0, 255, startGreen, endGreen),
-                     map(colorIndex, 0, 255, startBlue, endBlue)) % brightness;
-
-      // Gespiegelde LED aan de andere kant
-      leds[(midway - i) + midway] = CRGB(map(colorIndex, 0, 255, startRed, endRed),
-                                          map(colorIndex, 0, 255, startGreen, endGreen),
-                                          map(colorIndex, 0, 255, startBlue, endBlue)) % brightness;
-    }
-    else {
-      // LED's buiten het actieve bereik worden uitgeschakeld
-      leds[i] = CRGB(0, 0, 0);
-      leds[midway - react] = CRGB(0, 0, 0);
-    }
-  }
-  FastLED.show();
-}
-
-void readMSGEQ7()
-// Function to read 7 band equalizers
-{
-  digitalWrite(reset, HIGH);
-  digitalWrite(reset, LOW);
-  for(band=0; band <7; band++)
-  {
-    digitalWrite(strobe, LOW); // strobe pin on the shield - kicks the IC up to the next band 
-    delayMicroseconds(30); // 
-    left[band] = analogRead(audio1); // store left band reading
-    right[band] = analogRead(audio2); // ... and the right
-    digitalWrite(strobe, HIGH); 
-  }
-}
-
-void convertSingle()
-{
-  if (left[freq] > right[freq])
-    audio_input = left[freq];
-  else
-    audio_input = right[freq];
-
-  if (audio_input > 80)
-  {
-    pre_react = ((long)NUM_LEDS * (long)audio_input * sensitivity) / 1023L; // TRANSLATE AUDIO LEVEL TO NUMBER OF LEDs
-
-    if (pre_react > react) // ONLY ADJUST LEVEL OF LED IF LEVEL HIGHER THAN CURRENT LEVEL
-      react = pre_react;
-
-    Serial.print(audio_input);
-    Serial.print(" -> ");
-    Serial.println(pre_react);
-  }
-}
-
-void convertDouble()
-{
-  if (left[freq] > right[freq])
-    audio_input = left[freq];
-  else
-    audio_input = right[freq];
-
-  if (audio_input > 80)
-  {
-    pre_react = ((long)midway * (long)audio_input * sensitivity) / 1023L; // TRANSLATE AUDIO LEVEL TO NUMBER OF LEDs
-
-    if (pre_react > react) // ONLY ADJUST LEVEL OF LED IF LEVEL HIGHER THAN CURRENT LEVEL
-      react = pre_react;
-
-    Serial.print(audio_input);
-    Serial.print(" -> ");
-    Serial.println(pre_react);
-  }
-}
-
-// FUNCTION TO VISUALIZE WITH A SINGLE LEVEL
-void singleLevel()
-{
-  readMSGEQ7();
-
-  convertSingle();
-
-  singleRainbow(); // APPLY COLOR
-
-  k = k - wheel_speed; // SPEED OF COLOR WHEEL
-  if (k < 0) // RESET COLOR WHEEL
-    k = 255;
-
-  // REMOVE LEDs
-  decay_check++;
-  if (decay_check > decay)
-  {
-    decay_check = 0;
-    if (react > 0)
-      react--;
-  }
-}
-
-// FUNCTION TO VISUALIZE WITH MIRRORED LEVELS
-void doubleLevel()
-{
-  readMSGEQ7();
-
-  convertDouble();
-
-  doubleRainbow();
-
-  k = k - wheel_speed; // SPEED OF COLOR WHEEL
-  if (k < 0) // RESET COLOR WHEEL
-    k = 255;
-
-  // REMOVE LEDs
-  decay_check++;
-  if (decay_check > decay)
-  {
-    decay_check = 0;
-    if (react > 0)
-      react--;
-  }
+  ends = new EndsEffect();
+  center = new CenterEffect();
 }
 
 void loop()
 {  
-  //singleLevel();
-  doubleLevel();
+  //doubleLevel();
+  center->readMSGEQ7();
+
+  ends->convert();
+
+  ends->color(255, 0, 0);
+
+  k = k - wheel_speed; // SPEED OF COLOR WHEEL
+  if (k < 0) // RESET COLOR WHEEL
+    k = 255;
+
+  // REMOVE LEDs
+  decay_check++;
+  if (decay_check > decay)
+  {
+    decay_check = 0;
+    if (react > 0)
+      react--;
+  }
   //delay(1);
 }
 
@@ -302,5 +73,5 @@ void loop()
   Volume/sensitivity
   Color (SINGLE/MULTI only)
   Frequency
-  Brightness
+  brightness
 */
