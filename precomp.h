@@ -4,3 +4,4 @@
 #include "effect.h";
 #include "center-effect.h";
 #include "ends-effect.h";
+#include "random-blink-effect.h";

@@ -13,6 +13,7 @@
 
 EndsEffect* ends = nullptr;
 CenterEffect* center = nullptr;
+RandomBlinkEffect* randomBlink = nullptr;
 
 void setup()
 {
@@ -40,16 +41,17 @@ void setup()
 
   ends = new EndsEffect();
   center = new CenterEffect();
+  randomBlink = new RandomBlinkEffect();
 }
 
 void loop()
 {  
   //doubleLevel();
-  center->readMSGEQ7();
+  randomBlink->readMSGEQ7();
 
-  ends->convert();
+  randomBlink->convert();
 
-  ends->color(255, 0, 0);
+  randomBlink->colorFade(255, 0, 0, 255, 255, 255);
 
   k = k - wheel_speed; // SPEED OF COLOR WHEEL
   if (k < 0) // RESET COLOR WHEEL
